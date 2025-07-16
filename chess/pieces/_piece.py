@@ -1,10 +1,11 @@
-from typing import TYPE_CHECKING, Callable
+from typing import TYPE_CHECKING, Callable, Literal
 from chess.board import Board
 from chess.movement.movement import Movement
 from chess.players._player import Player
 from chess.position import Position
 
 if TYPE_CHECKING:
+    from chess.movement.board_movement import BoardMovement
     from chess.pieces.pawn import Pawn
 
 
@@ -77,6 +78,30 @@ class Piece:
         char = self.REPRESENTATION[self.player.is_black]
         return char if char else super().__str__()
 
+# ----- PieceType helper
+
+
+class WithMovementObserver(Piece):
+    __moved_from: 'BoardMovement | None' = None
+
+    @property
+    def has_moved(self):
+        return bool(self.__moved_from)
+
+    def moved(self, movement: Movement) -> None:
+        if self.__moved_from is None:
+            self.__moved_from = movement.in_board(self.board)
+
+        return super().moved(movement)
+
+    def unmoved(self, movement: Movement) -> None:
+        if movement.in_board(self.board) is self.__moved_from:
+            self.__moved_from = None
+
+        return super().unmoved(movement)
+
+# ----- PieceList helper
+
 
 class PieceList:
     def __init__(self, pieces: list[Piece]) -> None:
@@ -123,6 +148,27 @@ class PieceList:
 
         return self
 
+    def contesting(
+            self,
+            position: Position,
+            use_legals_movements_in: Board | Literal[False] = False,
+            should_be: bool = True
+    ):
+        self.__pieces = filter(
+            lambda p: (
+                position in map(
+                    lambda m: m.to_position,
+
+                    p.legal_movements(use_legals_movements_in)
+                    if use_legals_movements_in is not False
+                    else p.possible_movements(),
+                )
+            ) == should_be,
+            self.__pieces
+        )
+
+        return self
+
     def where(self, test: Callable[[Piece], bool], should_be: bool = True):
         self.__pieces = filter(
             lambda p: test(p) is should_be,
@@ -135,14 +181,16 @@ class PieceList:
         return list(self.__pieces)
 
     def first(self):
-        result = self.get()
-        return result[0] if result else None
+        try:
+            return next(self.__pieces)
+        except StopIteration:
+            return None
 
     def exist(self):
-        return bool(self.get())
+        return bool(self.first())
 
     def __iter__(self):
-        return self.get().__iter__()
+        return iter(self.__pieces)
 
     def __bool__(self):
         return self.exist()

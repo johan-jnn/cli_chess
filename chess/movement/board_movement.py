@@ -1,12 +1,12 @@
 import re
 from typing import TYPE_CHECKING, Callable, Iterator, Literal
+from chess.board import Board
 from chess.movement.movement import Movement
-from chess.pieces._piece import Piece
-from chess.pieces.king import King
 from chess.pieces.pawn import Pawn
 from chess.position import Position
 
 if TYPE_CHECKING:
+    from chess.pieces._piece import Piece
     from chess.players._player import Player
     from chess.board import Board
 
@@ -29,10 +29,42 @@ class BoardMovement(Movement):
         if move_info is None:
             return False
 
+        king = board.get_king_of(player)
         if move_info.group('k_castling'):
-            return board.get_king_of(player).position.move().addX(2).get()
+            movement = king.position.move().addX(2).get()
+            rook = king.king_casteling_rook
+            if not (
+                rook
+                and movement in king.legal_movements(board)
+            ):
+                return False
+
+            movement.cascading(
+                Movement(
+                    rook.position,
+                    movement.to_position.move().addX(-1).get().to_position
+                )
+            )
+
+            return movement
+
         if move_info.group('q_castling'):
-            return board.get_king_of(player).position.move().addX(-2).get()
+            movement = king.position.move().addX(-2).get()
+            rook = king.queen_casteling_rook
+            if not (
+                rook
+                and movement in king.legal_movements(board)
+            ):
+                return False
+
+            movement.cascading(
+                Movement(
+                    rook.position,
+                    movement.to_position.move().addX(1).get().to_position
+                )
+            )
+
+            return movement
 
         to, piece, from_col, from_row = move_info.group(
             'to', 'piece', 'from_col', 'from_row'
@@ -73,21 +105,27 @@ class BoardMovement(Movement):
             depends_on: 'BoardMovement|None' = None,
     ) -> None:
         if isinstance(positions, Movement):
-            super().__init__(positions.from_position, positions.to_position)
+            self.__dict__.update(positions.__dict__)
+            if self.cascade:
+                self.cascading(self.cascade.in_board(board))
         else:
             super().__init__(positions[0], positions[1])
+
         self.board = board
         self.depends_on = depends_on
 
         self.__verify_check_mate = False
 
         self.__board_hash_after: int | None = None
-        self.__eaten_piece: Piece | None = None
+        self.__eaten_piece: 'Piece|None' = None
         self.__promotion: tuple[Pawn, Piece] | None = None
         self.__made_check: tuple[bool, None | bool] = (False, None)
+        self.__casteling: None | Literal['king', 'queen'] = None
 
-    def in_game(self, board: 'Board'):
-        return self
+    def in_board(self, board: 'Board'):
+        if board is self.board:
+            return self
+        return super().in_board(board)
 
     def with_check_mate(self, verify=True):
         self.__verify_check_mate = verify
@@ -121,6 +159,8 @@ class BoardMovement(Movement):
         return legal
 
     def validate(self, compute_notation=True):
+        from chess.pieces.king import King
+
         assert self.__board_hash_after is None, "The movement has already been validated."
         piece = self.board.pieces.at(self.from_position).first()
         assert piece is not None, "Cannot validate the movement: no piece at the start position"
@@ -149,10 +189,16 @@ class BoardMovement(Movement):
             ) if self.__verify_check_mate else None
         )
 
+        if isinstance(piece, King):
+            self.__casteling = piece.castle_type(self)
+
         self.__board_hash_after = hash(self.board)
 
         if compute_notation:
             self.__compute_notation()
+
+        if self.cascade:
+            self.cascade.in_board(self.board).validate(False)
 
         assert self.info is not None, "Program error: info cannot be None !"
         return self.info
@@ -172,14 +218,16 @@ class BoardMovement(Movement):
                     to: Piece
                 },
                 eaten: None | Piece,
-                board_hash_result: int
+                casteling: None | 'king' | 'queen',
+                board_hash_result: int,
             }
 
         Returns:
             None|Info: If the movement has not been validated, None is returned.
         """
         if self.__board_hash_after is None:
-            return self.__board_hash_after
+            return None
+
         return {
             "check": self.__made_check,
             "promotion": {
@@ -187,10 +235,14 @@ class BoardMovement(Movement):
                 "to": self.__promotion[1]
             } if self.__promotion else None,
             "eaten": self.__eaten_piece,
-            "board_hash_result": self.__board_hash_after
+            "casteling": self.__casteling,
+            "board_hash_result": self.__board_hash_after,
         }
 
     def unvalidate(self):
+        if self.cascade:
+            self.cascade.in_board(self.board).unvalidate()
+
         assert hash(
             self.board
         ) == self.__board_hash_after, "The movement can't be unvalidated because the board is not at the right position."
@@ -224,6 +276,12 @@ class BoardMovement(Movement):
             self.board.pieces.at(self.to_position).playable().first()
         )
         assert piece is not None, "The movement cannot be linked to the given board : no piece at the end position"
+
+        if self.__casteling is not None:
+            self._computed_notation = "0-0" + (
+                "-0" if self.__casteling == 'queen' else ""
+            )
+            return
 
         piece.ghost = True
 
@@ -358,11 +416,8 @@ class BoardMovements:
             return
         return BoardMovements.first_when_of(self.last, validate)
 
-    def undo_last(self):
-        movement = self.shift()
-        if movement:
-            movement.unvalidate()
-        return movement
+    def manage_last(self):
+        return LastMovementManager(self) if self.last else None
 
     def __iter__(self) -> Iterator[BoardMovement]:
         if self.last is None:
@@ -371,3 +426,18 @@ class BoardMovements:
 
     def __str__(self) -> str:
         return " - ".join([str(m) for m in iter(self)])
+
+
+class LastMovementManager(BoardMovement):
+    def __init__(self, manager: BoardMovements) -> None:
+        assert manager.last, "No movement in manager : cannot instanciate an empty LastMovementManager"
+        self.__manager = manager
+        self.__movement = manager.last
+        self.__dict__.update(self.__movement.__dict__)
+
+    def unvalidate(self):
+        return self.undo()
+
+    def undo(self):
+        self.__movement.unvalidate()
+        self.__manager.shift()

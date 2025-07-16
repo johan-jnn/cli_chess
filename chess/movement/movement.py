@@ -14,6 +14,22 @@ class Movement:
         self.to_position = to_position.clone()
         self._computed_notation: str | None = None
 
+        self.__cascade_with: Movement | None = None
+
+    def cascading(self, with_movement: 'Movement'):
+        self.__cascade_with = with_movement
+        return self
+
+    def not_cascading(self):
+        self.__cascade_with = None
+        return self
+
+    @property
+    def cascade(self):
+        """The return movement is executed after the parent movement is made.
+        """
+        return self.__cascade_with
+
     def in_board(self, board: 'Board'):
         from chess.movement.board_movement import BoardMovement
         return BoardMovement(self, board)
@@ -24,6 +40,18 @@ class Movement:
             self._computed_notation
             or self.__identifier__()
         )
+
+    @property
+    def difference(self):
+        return (
+            self.to_position.x_index - self.from_position.x_index,
+            self.to_position.y_index - self.from_position.y_index
+        )
+
+    @property
+    def distance(self):
+        diff = self.difference
+        return (abs(diff[0]), abs(diff[1]))
 
     def __identifier__(self):
         return f"{self.from_position} -> {self.to_position}"

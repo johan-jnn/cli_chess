@@ -1,7 +1,7 @@
 from typing import Any, Literal
 from chess.board import Board
 from chess.movement.movement import Movement
-from chess.pieces._piece import Piece
+from chess.pieces._piece import Piece, WithMovementObserver
 from chess.pieces.bishop import Bishop
 from chess.pieces.knight import Knight
 from chess.pieces.queen import Queen
@@ -10,7 +10,7 @@ from chess.players._player import Player
 from chess.position import Position
 
 
-class Pawn(Piece):
+class Pawn(WithMovementObserver):
     REPRESENTATION = ("♙", "♟")
     NOTATION = 'p'
 
@@ -23,10 +23,8 @@ class Pawn(Piece):
 
     def __init__(self, board: Board, player: Player, x: str, y: int | None = None) -> None:
         super().__init__(board, player, 1, x, y)
-        self.__moved = False
         self.promoted_as: Piece | None = None
         self.__force_promotion_to: Any | None = None
-        self.__init_position = str(self.position)
 
     def will_promote_as(self, choice: type[Piece] | Literal['ask']):
         if choice == "ask":
@@ -72,7 +70,6 @@ class Pawn(Piece):
             print("Veuillez choisir une pièce valide !")
 
     def moved(self, movement: Movement) -> None:
-        self.__moved = True
         if self.require_promotion(movement):
             # Temporary ghost the piece to avoid the "existing piece at this position" error
             self.ghost = True
@@ -86,9 +83,6 @@ class Pawn(Piece):
             self.promoted_as.remove_from_board()
             self.promoted_as = None
 
-        if str(movement.from_position) == self.__init_position:
-            self.__moved = False
-
         return super().unmoved(movement)
 
     def possible_movements(self) -> list[Movement]:
@@ -98,7 +92,7 @@ class Pawn(Piece):
             moves.append(forward)
 
         # The "and moves" is to verify there is no piece in front of this one
-        if not self.__moved and moves:
+        if not self.has_moved and moves:
             forward2 = self.position.move().addY(2, self.player.direction).safe_get()
             if forward2 and not self.board.pieces.at(forward2.to_position).exist():
                 moves.append(forward2)

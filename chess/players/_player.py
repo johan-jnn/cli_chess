@@ -1,5 +1,5 @@
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 from chess.movement.movement import Movement
 
 if TYPE_CHECKING:
@@ -7,11 +7,17 @@ if TYPE_CHECKING:
 
 
 class Player:
-    def __init__(self, direction: int, name: str = "Player #?") -> None:
+    def __init__(self, direction: Literal[-1, 1], name: str | None = None) -> None:
+        """Creates a new player
+
+        Args:
+            direction (int): The direction of the player. Whites are defined by a direction > 0 and blacks by a direction < 0
+            name (str, optional): The name of the player. Defaults to the color of the player.
+        """
         assert direction, "Player's direction cannot be 0"
 
         self.direction = direction
-        self.name = name
+        self.name = name or ("Whites" if self.is_white else "Blacks")
 
     def get_move(self, game: 'ChessGame') -> Movement | str:
         """Get this player's next move

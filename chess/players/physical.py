@@ -29,12 +29,21 @@ class PhysicalPlayer(Player):
                 game.stop()
                 print("Merci d'avoir joué !")
                 return sys.exit(0)
-            case "cancel":
-                movement = game.moves.undo_last()
-                return f"{movement} vient d'être annulé !" if movement else "Il n'y a pas de movement à annuler"
+            case "cancel" | "undo":
+                movement = game.moves.manage_last()
+                if movement is None:
+                    return "Il n'y a pas de movement à annuler"
+
+                notation = movement.notation
+                movement.undo()
+
+                return f"{notation} vient d'être annulé !"
             case "pause":
                 game.pause()
                 return "Tapez :resume pour reprendre la partie !"
+            case "clear":
+                game._clear_console()
+                return ""
             case "legals":
                 try:
                     position = Position(args[0])
