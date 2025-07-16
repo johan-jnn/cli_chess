@@ -126,12 +126,3 @@ class King(WithMovementObserver):
                 king_movement.to_position.move().addX(-1, direction).get().to_position
             )
         )
-
-    def is_check(self):
-        return self.board.pieces.of(self.player, False).contesting(self.position).exist()
-
-    def is_check_mate(self, board: 'Board'):
-        for piece in self.board.pieces.of(self.player):
-            if piece.legal_movements(board):
-                return False
-        return True

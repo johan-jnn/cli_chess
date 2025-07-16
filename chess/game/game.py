@@ -1,7 +1,7 @@
 from typing import TYPE_CHECKING
 from chess.boards.board import Board
 from chess.boards.normal import NormalBoard
-from chess.players._player import Player
+from chess.players._player import Player, StatusVerifier
 from chess.movement.board_movement import BoardMovements
 
 if TYPE_CHECKING:
@@ -70,16 +70,13 @@ class ChessGame:
         return self
 
     def reset(self, remove_pieces=False):
-        self.__state = "idle"
         self.__winner = None
-        self.board.get_king_of(
-            self.now_playing()).toggle_checkmate_representation(False)
-        self.board.get_king_of(
-            self.now_opponent()).toggle_checkmate_representation(False)
+        self.board.empty()
+        self.__state = "empty"
 
-        if remove_pieces:
-            self.board._pieces = []
-            self.__state = "empty"
+        if not remove_pieces:
+            self.setup_board()
+            self.__state = "idle"
 
         return self
 
@@ -114,14 +111,14 @@ class ChessGame:
         except AssertionError as err:
             return self.autoplay(str(err.args[0]))
 
-        check, check_mate = info['check']
-        if check_mate:
+        status: StatusVerifier = info['status']
+        if status.is_check_mate:
             self._clear_console()
             print("Echec et mat : Partie terminée.")
             print(self.board.as_reversed(False).with_coordonates())
             self.stop()
 
-        return self.autoplay("Echec !" if check else None)
+        return self.autoplay("Echec !" if status.is_checked else None)
 
     def __exec_move(self, move: 'Movement|BoardMovement'):
         if self.__state != "playing":
@@ -147,7 +144,7 @@ class ChessGame:
         assert not isinstance(move_result, str), move_result
         move, info = move_result
 
-        if info['check'][1]:
+        if info['status'].is_check_mate:
             self.__winner = self.now_playing()
             self.board.get_king_of(
                 self.now_opponent()

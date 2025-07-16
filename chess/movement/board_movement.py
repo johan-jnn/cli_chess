@@ -4,6 +4,7 @@ from chess.boards.board import Board
 from chess.movement.movement import Movement
 from chess.pieces.king import King
 from chess.pieces.pawn import Pawn
+from chess.players._player import StatusVerifier
 from chess.position import Position
 
 if TYPE_CHECKING:
@@ -58,9 +59,8 @@ class BoardMovement(Movement):
             if piece and piece.lower() != player_piece.NOTATION.lower():
                 continue
 
-            # Uncomment the following to force indicating the piece if it is not a pawn
-            # if not (piece or isinstance(player_piece, Pawn)):
-            #     continue
+            if not (piece or isinstance(player_piece, Pawn)):
+                continue
 
             if from_col and player_piece.position.x != from_col:
                 continue
@@ -105,7 +105,7 @@ class BoardMovement(Movement):
         self.__board_hash_after: int | None = None
         self.__eaten_piece: 'Piece|None' = None
         self.__promotion: tuple[Pawn, Piece] | None = None
-        self.__made_check: tuple[bool, None | bool] = (False, None)
+        self.__made_status: None | StatusVerifier = None
         self.__casteling: None | Literal['king', 'queen'] = None
 
     def in_board(self, board: 'Board'):
@@ -133,7 +133,7 @@ class BoardMovement(Movement):
         legal = False
         try:
             self.validate(False)
-            legal = not self.board.get_king_of(piece.player).is_check()
+            legal = not piece.player.verify_status(self.board).is_checked
             self.unvalidate()
         except AssertionError:
             pass
@@ -154,7 +154,7 @@ class BoardMovement(Movement):
         eaten = self.board.pieces.at(self.to_position).first()
         if eaten is not None:
             assert eaten.player != piece.player, "Cannot eat your own piece"
-            assert isinstance(eaten, King), "Cannot eat a king."
+            assert not isinstance(eaten, King), "Cannot eat a king."
             eaten.eaten_by = piece
             self.__eaten_piece = eaten
 
@@ -167,12 +167,9 @@ class BoardMovement(Movement):
         if isinstance(piece, Pawn) and promotion:
             self.__promotion = (piece, promotion)
 
-        opponent_king = self.board.get_king_of(piece.player, True)
-        self.__made_check = (
-            opponent_king.is_check(),
-            opponent_king.is_check_mate(
-                self.board
-            ) if self.__verify_check_mate else None
+        opponent = self.board.get_king_of(piece.player, True).player
+        self.__made_status = opponent.verify_status(
+            self.board, True, self.__verify_check_mate
         )
 
         if isinstance(piece, King):
@@ -196,9 +193,8 @@ class BoardMovement(Movement):
         ## Types
             ### Info: 
             dict{
-                check: (check: bool, check_mate: bool|None), 
-                    #? For check_mate, a None value means that the mate has not been checked.
-                    #? Call the method with_check_mate() before validating the movement to include the check_mate verification
+                status: StatusVerifier,
+                    #? The status the move made for the opponent
                 promotion: None | dict{
                     from: Pawn,
                     to: Piece
@@ -215,7 +211,7 @@ class BoardMovement(Movement):
             return None
 
         return {
-            "check": self.__made_check,
+            "status": self.__made_status,
             "promotion": {
                 "from": self.__promotion[0],
                 "to": self.__promotion[1]
@@ -302,9 +298,9 @@ class BoardMovement(Movement):
         ) + (
             self.__promotion[1].NOTATION.upper() if self.__promotion else ""
         ) + (
-            "#" if self.__made_check[1] else
-            "+" if self.__made_check[0] else ""
-        )
+            "#" if self.__made_status.is_check_mate else
+            "+" if self.__made_status.is_checked else ""
+        ) if self.__made_status else ""
 
 
 class BoardMovements:

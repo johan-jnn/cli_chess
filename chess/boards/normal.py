@@ -41,5 +41,6 @@ class NormalBoard(Board):
 
         Queen(self, whites, f"{queen_x}1")
         Queen(self, blacks, f"{queen_x}8")
+
         King(self, whites, f"{king_x}1")
         King(self, blacks, f"{king_x}8")
