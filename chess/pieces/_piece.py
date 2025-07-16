@@ -1,5 +1,5 @@
 from typing import TYPE_CHECKING, Callable, Literal
-from chess.board import Board
+from chess.boards.board import Board
 from chess.movement.movement import Movement
 from chess.players._player import Player
 from chess.position import Position

@@ -1,13 +1,7 @@
 from typing import TYPE_CHECKING
-from chess.board import Board
-from chess.pieces.bishop import Bishop
-from chess.pieces.king import King
-from chess.pieces.knight import Knight
-from chess.pieces.pawn import Pawn
-from chess.pieces.queen import Queen
-from chess.pieces.rook import Rook
+from chess.boards.board import Board
+from chess.boards.normal import NormalBoard
 from chess.players._player import Player
-from chess.position import Position
 from chess.movement.board_movement import BoardMovements
 
 if TYPE_CHECKING:
@@ -21,20 +15,20 @@ class ChessGame:
 
         Args:
             players (tuple[Player, Player]): The players of this game, ordered by the playing position (first is first to play)
-            board (Board | None, optional): The board the players will play in. Defaults to None (generates a new board with basic pieces position).
+            board (Board | None, optional): The board the players will play in. Defaults to None (generates a new normal board with basic pieces position).
         """
         assert players[0].direction != players[1].direction, "Players has the same direction !"
 
         self.moves = BoardMovements()
         self.players = players
-        self.board = board if board is not None else Board()
+        self.board = board if board is not None else NormalBoard()
         self.debug = False
 
         self.__state = "empty"
         self.__winner: None | Player = None
 
         if board is None:
-            self.setup_default_board()
+            self.setup_board()
 
         self.reset()
 
@@ -85,6 +79,7 @@ class ChessGame:
 
         if remove_pieces:
             self.board._pieces = []
+            self.__state = "empty"
 
         return self
 
@@ -155,7 +150,8 @@ class ChessGame:
         if info['check'][1]:
             self.__winner = self.now_playing()
             self.board.get_king_of(
-                self.now_opponent()).toggle_checkmate_representation(True)
+                self.now_opponent()
+            ).toggle_checkmate_representation(True)
 
             self.stop()
 
@@ -170,44 +166,9 @@ class ChessGame:
     def white_player(self):
         return self.players[self.players[1].is_white]
 
-    def setup_default_board(self):
+    def setup_board(self):
         assert self.white_player.is_black != self.black_player.is_black, "Players has the same direction ! Game cannot init the board."
 
-        self.board._pieces = []
-        # Pawns
-        for x_axis in Position.valid_board_x:
-            for (white, pawn_y) in enumerate([7, 2]):
-                Pawn(
-                    self.board,
-                    self.white_player if white else self.black_player,
-                    f"{x_axis}{pawn_y}"
-                )
-
-        # Rooks
-        Rook(self.board, self.white_player, "a1")
-        Rook(self.board, self.white_player, "h1")
-        Rook(self.board, self.black_player, "a8")
-        Rook(self.board, self.black_player, "h8")
-
-        # Knight
-        Knight(self.board, self.white_player, "b1")
-        Knight(self.board, self.white_player, "g1")
-        Knight(self.board, self.black_player, "b8")
-        Knight(self.board, self.black_player, "g8")
-
-        # Bishop
-        Bishop(self.board, self.white_player, "c1")
-        Bishop(self.board, self.white_player, "f1")
-        Bishop(self.board, self.black_player, "c8")
-        Bishop(self.board, self.black_player, "f8")
-
-        queen_x = "e" if self.white_player.is_black else "d"
-        king_x = "e" if queen_x == "d" else "d"
-
-        Queen(self.board, self.white_player, f"{queen_x}1")
-        Queen(self.board, self.black_player, f"{queen_x}8")
-
-        King(self.board, self.white_player, f"{king_x}1")
-        King(self.board, self.black_player, f"{king_x}8")
+        self.board.setup(self.white_player, self.black_player)
 
         self.__state = "ready"

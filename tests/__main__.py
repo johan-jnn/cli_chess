@@ -1,6 +1,6 @@
 from copy import copy
 from chess import position
-from chess.board import Board
+from chess.boards.board import Board
 from chess.game.game import ChessGame
 from chess.movement.board_movement import BoardMovement
 from chess.movement.movement import Movement

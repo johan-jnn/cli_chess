@@ -1,4 +1,4 @@
-from chess.board import Board
+from chess.boards.board import Board
 from chess.movement.movement import Movement
 from chess.pieces._piece import WithMovementObserver
 from chess.players._player import Player

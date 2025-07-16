@@ -1,5 +1,5 @@
 from typing import Any, Literal
-from chess.board import Board
+from chess.boards.board import Board
 from chess.movement.movement import Movement
 from chess.pieces._piece import Piece, WithMovementObserver
 from chess.pieces.bishop import Bishop

@@ -25,6 +25,7 @@ Ce projet est pensé pour les passionnés de stratégie et les développeurs sou
   - Répétition de coups (3x)
   - Proposition de pat
 - ⏳ **Jeu contre un bot** (structure déjà en place, IA à implémenter)
+- ⏳ Possibilité de jouer en mode [**Chess920**](https://fr.wikipedia.org/wiki/%C3%89checs_al%C3%A9atoires_Fischer)
 
 ---
 
@@ -34,7 +35,9 @@ Ce projet est pensé pour les passionnés de stratégie et les développeurs sou
 | ---------------- | ----------------------------------------------- |
 | `:exit`          | Ferme immédiatement le jeu                      |
 | `:cancel`        | Annule le dernier coup joué                     |
+| `:undo`          | Alias de la commande `:cancel`                  |
 | `:pause`         | Met en pause la partie (jusqu'à reprise)        |
+| `:clear`         | Effacer le contenu de l'écran                   |
 | `:legals <case>` | Affiche les coups légaux depuis une case donnée |
 
 > Exemple : `:legals e2` affichera tous les coups possibles depuis la case **e2**

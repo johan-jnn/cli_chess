@@ -2,7 +2,7 @@ from typing import TYPE_CHECKING
 from chess.position import Position
 
 if TYPE_CHECKING:
-    from chess.board import Board
+    from chess.boards.board import Board
 
 
 class Movement:

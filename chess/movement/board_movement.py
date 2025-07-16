@@ -1,6 +1,6 @@
 import re
 from typing import TYPE_CHECKING, Callable, Iterator, Literal
-from chess.board import Board
+from chess.boards.board import Board
 from chess.movement.movement import Movement
 from chess.pieces.king import King
 from chess.pieces.pawn import Pawn
@@ -9,7 +9,7 @@ from chess.position import Position
 if TYPE_CHECKING:
     from chess.pieces._piece import Piece
     from chess.players._player import Player
-    from chess.board import Board
+    from chess.boards.board import Board
 
 
 class BoardMovement(Movement):
@@ -290,7 +290,7 @@ class BoardMovement(Movement):
         piece.ghost = False
 
         self._computed_notation = (
-            "" if isinstance(piece, Pawn) else str(piece)
+            "" if isinstance(piece, Pawn) else f"{piece} "
         ) + (
             self.from_position.x if use_helpers[0] else ""
         ) + (

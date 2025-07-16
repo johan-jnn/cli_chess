@@ -31,6 +31,12 @@ class Board:
         from chess.pieces._piece import PieceList
         return PieceList(self._pieces)
 
+    def empty(self):
+        self._pieces = []
+
+    def setup(self, whites: Player, blacks: Player):
+        pass
+
     def get_king_of(self, player: Player, get_opponent_king=False):
         from chess.pieces.king import King
         for piece in self.pieces.of(player, not get_opponent_king):
