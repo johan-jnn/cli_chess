@@ -105,13 +105,27 @@ class King(WithMovementObserver):
 
         return super().legal_movements(board) + allowed_casteling
 
-    def castle_type(self, movement: Movement):
+    @staticmethod
+    def castle_type(movement: Movement):
         x_shift, y_shift = movement.difference
         if abs(x_shift) == 2 and y_shift == 0:
             return 'king' if x_shift > 0 else 'queen'
 
-    def castle_movement(self, castle_type: Literal['king', 'queen']):
-        return self.position.move().addX(2, -1 if castle_type == 'queen' else 1).get()
+    def castle_movement(self, castle_type: Literal['king', 'queen'], with_rook_cascade: bool = True):
+        direction = -1 if castle_type == 'queen' else 1
+
+        king_movement = self.position.move().addX(2, direction).get()
+        if with_rook_cascade is False:
+            return king_movement
+        rook = self.king_casteling_rook if castle_type == 'king' else self.queen_casteling_rook
+        assert rook is not None, "Cannot get the castle movement with rook as the rook does not exists."
+
+        return king_movement.cascading(
+            Movement(
+                rook.position,
+                king_movement.to_position.move().addX(-1, direction).get().to_position
+            )
+        )
 
     def is_check(self):
         return self.board.pieces.of(self.player, False).contesting(self.position).exist()

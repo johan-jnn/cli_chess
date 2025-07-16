@@ -11,6 +11,7 @@ Ce projet est pensé pour les passionnés de stratégie et les développeurs sou
 - ✅ Mode **tour par tour**, avec **plateau qui se retourne** à chaque coup
 - ✅ Vérification des **coups légaux** (mouvements, prises, promotions...)
 - ✅ Détection de l’**échec** et du **mat**
+- ✅ Prise en charge du petit/grand rock
 - ✅ Prise en charge de la **notation algébrique** pour l'encodage et le décodage des coups ([Algebraic notation](<https://en.wikipedia.org/wiki/Algebraic_notation_(chess)>))
 - ✅ **Annulation de coup** (commande `:cancel`)
 - ✅ Commandes spéciales pour améliorer l’expérience utilisateur

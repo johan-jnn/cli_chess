@@ -11,7 +11,7 @@ if TYPE_CHECKING:
 class PhysicalPlayer(Player):
     def get_move(self, game: 'ChessGame', msg: str = "") -> BoardMovement | str:
         if msg:
-            msg += " - "
+            msg = f"-> {msg}\n"
 
         wanted = input(msg + "Type your move >> ")
         if wanted.startswith(":"):
@@ -19,10 +19,19 @@ class PhysicalPlayer(Player):
 
         validated = BoardMovement.decode(wanted, game.board, self)
         if not validated:
-            return self.get_move(game, "Invalid move, please retry !")
+            return self.get_move(game, "Le movement n'est pas valide.")
         return validated.in_board(game.board)
 
     def command(self, command: str,  game: 'ChessGame') -> str:
+        if command.strip() in ("", "help"):
+            return " - ".join((
+                ":exit",
+                ":cancel / :undo",
+                ":pause",
+                ":clear",
+                ":legals"
+            ))
+
         command, *args = command.split()
         match command:
             case "exit":
@@ -64,4 +73,4 @@ class PhysicalPlayer(Player):
                 except AssertionError as err:
                     return str(err.args[0])
 
-        return "La commande n'est pas valide."
+        return "La commande n'est pas valide. (Tapez ':' ou ':help' pour afficher toutes les commandes)"

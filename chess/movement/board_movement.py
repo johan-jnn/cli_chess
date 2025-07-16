@@ -2,6 +2,7 @@ import re
 from typing import TYPE_CHECKING, Callable, Iterator, Literal
 from chess.board import Board
 from chess.movement.movement import Movement
+from chess.pieces.king import King
 from chess.pieces.pawn import Pawn
 from chess.position import Position
 
@@ -31,40 +32,18 @@ class BoardMovement(Movement):
 
         king = board.get_king_of(player)
         if move_info.group('k_castling'):
-            movement = king.position.move().addX(2).get()
-            rook = king.king_casteling_rook
-            if not (
-                rook
-                and movement in king.legal_movements(board)
-            ):
+            try:
+                movement = king.castle_movement('king')
+                return movement if movement in king.legal_movements(board) else False
+            except AssertionError:
                 return False
-
-            movement.cascading(
-                Movement(
-                    rook.position,
-                    movement.to_position.move().addX(-1).get().to_position
-                )
-            )
-
-            return movement
 
         if move_info.group('q_castling'):
-            movement = king.position.move().addX(-2).get()
-            rook = king.queen_casteling_rook
-            if not (
-                rook
-                and movement in king.legal_movements(board)
-            ):
+            try:
+                movement = king.castle_movement('queen')
+                return movement if movement in king.legal_movements(board) else False
+            except AssertionError:
                 return False
-
-            movement.cascading(
-                Movement(
-                    rook.position,
-                    movement.to_position.move().addX(1).get().to_position
-                )
-            )
-
-            return movement
 
         to, piece, from_col, from_row = move_info.group(
             'to', 'piece', 'from_col', 'from_row'
@@ -95,6 +74,13 @@ class BoardMovement(Movement):
             if found:
                 return False
             found = movement
+
+        if found and piece and isinstance(piece, King):
+            castling = piece.castle_type(found)
+            if castling is not None:
+                return BoardMovement.decode("0-0" + (
+                    "-0" if castling == 'queen' else ""
+                ), board, player)
 
         return found
 

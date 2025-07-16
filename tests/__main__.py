@@ -44,4 +44,6 @@ def debug():
     game.play("g6")
     game.play("b5")
     game.play("h5")
+
     game.autoplay()
+    #! Move: kg1 -> rook isn't moving.
