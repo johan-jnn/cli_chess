@@ -10,7 +10,6 @@ from chess.position import Position
 if TYPE_CHECKING:
     from chess.pieces._piece import Piece
     from chess.players._player import Player
-    from chess.boards.board import Board
 
 
 class BoardMovement(Movement):
@@ -145,8 +144,6 @@ class BoardMovement(Movement):
         return legal
 
     def validate(self, compute_notation=True):
-        from chess.pieces.king import King
-
         assert self.__board_hash_after is None, "The movement has already been validated."
         piece = self.board.pieces.at(self.from_position).first()
         assert piece is not None, "Cannot validate the movement: no piece at the start position"

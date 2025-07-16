@@ -16,6 +16,14 @@
       "args": "--test"
     },
     {
+      "name": "Python Debugger: Units testing",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/__main__.py",
+      "console": "integratedTerminal",
+      "args": "--units"
+    },
+    {
       "name": "Python Debugger: Project",
       "type": "debugpy",
       "request": "launch",
