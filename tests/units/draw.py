@@ -1,6 +1,8 @@
 from chess.boards.board import Board
 from chess.pieces.bishop import Bishop
 from chess.pieces.king import King
+from chess.pieces.pawn import Pawn
+from chess.players._player import DrawReason
 from chess.players.physical import PhysicalPlayer
 
 
@@ -13,5 +15,11 @@ King(board, blacks, "h7")
 
 Bishop(board, whites, "g7")
 
-verifier = blacks.verify_status(board).verify_for_check().verify_for_end_game()
-assert verifier.is_draw and not verifier.is_check_mate
+verifier = blacks.verify_status(board).with_draw()
+assert verifier.is_draw and verifier.is_draw == DrawReason.INSUFFICIENT_MATERIAL
+
+Pawn(board, whites, "a3")
+Pawn(board, blacks, "a4")
+verifier = blacks.verify_status(board).with_draw()
+
+assert verifier.is_draw and verifier.is_draw == DrawReason.STALEMATE

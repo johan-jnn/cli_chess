@@ -99,7 +99,7 @@ class BoardMovement(Movement):
         self.board = board
         self.depends_on = depends_on
 
-        self.__verify_check_mate = False
+        self.__verify_game_end = False
 
         self.__board_hash_after: int | None = None
         self.__eaten_piece: 'Piece|None' = None
@@ -112,8 +112,8 @@ class BoardMovement(Movement):
             return self
         return super().in_board(board)
 
-    def with_check_mate(self, verify=True):
-        self.__verify_check_mate = verify
+    def with_game_end(self, verify=True):
+        self.__verify_game_end = verify
         return self
 
     def is_legal_now(self):
@@ -121,11 +121,11 @@ class BoardMovement(Movement):
         if piece is None:
             return False
 
-        reset_check_mate_verify_to = self.__verify_check_mate
-        self.with_check_mate(False)
+        initial_verify_game_end = self.__verify_game_end
+        self.with_game_end(False)
 
         is_pawn = isinstance(piece, Pawn)
-        reset_promotion_to = is_pawn and piece.promotion_forced_to
+        initial_pawn_promotion = is_pawn and piece.promotion_forced_to
         if is_pawn:
             piece.will_promote_as(piece.PROMOTABLE_AS[0][1])
 
@@ -137,10 +137,10 @@ class BoardMovement(Movement):
         except AssertionError:
             pass
 
-        if is_pawn and reset_promotion_to:
-            piece.will_promote_as(reset_promotion_to)
+        if is_pawn and initial_pawn_promotion:
+            piece.will_promote_as(initial_pawn_promotion)
 
-        self.with_check_mate(reset_check_mate_verify_to)
+        self.with_game_end(initial_verify_game_end)
         return legal
 
     def validate(self, compute_notation=True):
@@ -166,7 +166,7 @@ class BoardMovement(Movement):
 
         opponent = self.board.get_king_of(piece.player, True).player
         self.__made_status = opponent.verify_status(
-            self.board, True, self.__verify_check_mate
+            self.board, True, self.__verify_game_end, self.__verify_game_end
         )
 
         if isinstance(piece, King):

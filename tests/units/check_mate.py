@@ -17,5 +17,5 @@ game.play("e6")
 game.play("g4")
 game.play("Qh4")
 
-verifier = whites.verify_status(board).verify_for_check().verify_for_end_game()
+verifier = whites.verify_status(board).with_checkmate()
 assert verifier.is_check_mate

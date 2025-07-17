@@ -13,5 +13,5 @@ King(board, blacks, "h1")
 
 Rook(board, whites, "h4")
 
-verifier = blacks.verify_status(board).verify_for_check().verify_for_end_game()
+verifier = blacks.verify_status(board).with_checkmate()
 assert verifier.is_checked and not verifier.is_check_mate

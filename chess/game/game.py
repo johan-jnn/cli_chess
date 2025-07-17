@@ -1,7 +1,7 @@
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 from chess.boards.board import Board
 from chess.boards.normal import NormalBoard
-from chess.players._player import Player, StatusVerifier
+from chess.players._player import DrawReason, Player, StatusVerifier
 from chess.movement.board_movement import BoardMovements
 
 if TYPE_CHECKING:
@@ -26,11 +26,42 @@ class ChessGame:
 
         self.__state = "empty"
         self.__winner: None | Player = None
+        self.__draw: DrawReason | Literal[False] = False
 
         if board is None:
             self.setup_board()
 
         self.reset()
+
+    @property
+    def status(self):
+        """Get the status of the game
+
+        Returns:
+            1. The game has been won
+                {
+                    "status": "won",
+                    "winner": Player
+                }
+            2. The game is draw
+                {
+                    "status": "draw",
+                    "draw": DrawReason
+                }
+            3. Default
+                {
+                    "status": game.state
+                }
+        """
+        return {
+            "status": "draw",
+            "draw": self.__draw
+        } if self.__draw else {
+            "status": "won",
+            "winner": self.__winner
+        } if self.__winner else {
+            "status": self.state
+        }
 
     def now_playing(self):
         return self.players[len(self.moves) % 2]
@@ -114,9 +145,16 @@ class ChessGame:
         status: StatusVerifier = info['status']
         if status.is_check_mate:
             self._clear_console()
-            print("Echec et mat : Partie terminée.")
+            print(
+                f"Echec et mat : Partie terminée. {self.__winner} remporte la partie."
+            )
             print(self.board.as_reversed(False).with_coordonates())
-            self.stop()
+            return
+        elif status.is_draw:
+            self._clear_console()
+            print(f"Nule ! Raison: {status.is_draw}")
+            print(self.board.as_reversed(False).with_coordonates())
+            return
 
         return self.autoplay("Echec !" if status.is_checked else None)
 
@@ -126,7 +164,7 @@ class ChessGame:
 
         gm = move.in_board(self.board)
         try:
-            return (gm, gm.with_check_mate().validate())
+            return (gm, gm.with_game_end().validate())
         except AssertionError as err:
             gm.unvalidate()
             return str(err.args[0])
@@ -150,6 +188,9 @@ class ChessGame:
                 self.now_opponent()
             ).toggle_checkmate_representation(True)
 
+            self.stop()
+        elif info['status'].is_draw:
+            self.__draw = info['status'].is_draw
             self.stop()
 
         self.moves.register(move)

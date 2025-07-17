@@ -1,4 +1,5 @@
 
+from enum import Enum
 from typing import TYPE_CHECKING, Literal
 from chess.movement.movement import Movement
 
@@ -25,8 +26,8 @@ class Player:
         """
         raise NotImplementedError("Missing move method on parent class.")
 
-    def verify_status(self, in_board: 'Board', pre_compute_checked=True, pre_compute_endgame=False):
-        return StatusVerifier(self, in_board, pre_compute_checked, pre_compute_endgame)
+    def verify_status(self, in_board: 'Board', pre_compute_checked=True, pre_compute_checkmate=False, pre_compute_draw=False):
+        return StatusVerifier(self, in_board, pre_compute_checked, pre_compute_checkmate, pre_compute_draw)
 
     @property
     def is_black(self):
@@ -40,8 +41,31 @@ class Player:
         return self.name
 
 
+class DrawReason(Enum):
+    STALEMATE = 0
+    REPETITION = 1
+    FIFTY_MOVE = 2
+    SEVENTY_MOVE = 3
+    MUTUAL_AGREEMENT = 4
+    INSUFFICIENT_MATERIAL = 5
+    NO_SEQUENCE = 6
+
+    # In timed games
+    TIME_ALLOTMENT_EXCEEDED = 7
+    TIMEOUT_AS_UNCHECKMATEABLE = 8
+
+    def __str__(self) -> str:
+        return {
+            DrawReason.STALEMATE: "Mouvement impossible",
+            DrawReason.REPETITION: "Répétition du même mouvement 3 fois",
+            DrawReason.FIFTY_MOVE: "50 mouvements sans aucune prise",
+            DrawReason.MUTUAL_AGREEMENT: "Demande accepté",
+            DrawReason.INSUFFICIENT_MATERIAL: "Materiel insuffisant"
+        }.get(self, self.name)
+
+
 class StatusVerifier():
-    def __init__(self, player: Player, board: 'Board', direct_verify_for_checked=False, direct_verify_for_end_game=False) -> None:
+    def __init__(self, player: Player, board: 'Board', with_check=False, with_checkmate=False, with_draw=False) -> None:
         self.__player = player
         self.__board = board
         self.__king = board.get_king_of(player)
@@ -49,37 +73,62 @@ class StatusVerifier():
         self.is_checked = None
 
         self.is_check_mate = None
-        self.is_draw = None
+        self.is_draw: None | DrawReason = None
 
-        if direct_verify_for_checked:
-            self.verify_for_check()
-        if direct_verify_for_end_game:
-            self.verify_for_end_game()
+        if with_check:
+            self.with_check()
+        if with_checkmate:
+            self.with_checkmate()
+        if with_draw:
+            self.with_draw()
 
-    def verify_for_check(self, verify=True):
-        """
-        Set the value of self.is_checked (if the player's king position is contested by opponent's pieces)
-        """
-        if verify:
-            self.is_checked = self.board.pieces.of(
+    def with_check(self, verify=True):
+        self.is_checked = (
+            self.board.pieces.of(
                 self.player, False
             ).contesting(self.__king.position).exist()
-        else:
-            self.is_checked = None
+        ) if verify and self.is_checked is None else self.is_checked
 
         return self
 
-    def verify_for_end_game(self, verify=True):
-        if verify:
-            if self.is_checked is None:
-                self.verify_for_check(True)
-            player_checked = self.is_checked or False
-            player_can_move = self.__is_able_to_move()
+    def with_checkmate(self, verify=True):
+        self.is_check_mate = (
+            self.with_check().is_checked and not self.has_movable_piece()
+        ) if verify and self.is_check_mate is None else self.is_check_mate
 
-            self.is_check_mate = player_checked and not player_can_move
-            self.is_draw = not (player_checked or player_can_move)
-        else:
-            self.is_draw = self.is_check_mate = None
+        return self
+
+    def __find_draw_reason(self) -> DrawReason | None:
+        from chess.pieces.bishop import Bishop
+        from chess.pieces.king import King
+        from chess.pieces.knight import Knight
+
+        min_pieces, max_pieces = sorted([
+            self.board.pieces.of(self.__player).type(King, False).get(),
+            self.board.pieces.of(self.__player, False).type(
+                King, False
+            ).get()
+        ], key=len)
+
+        if (
+            not min_pieces
+            and len(max_pieces) == 1
+            and isinstance(max_pieces[0], (Bishop, Knight))
+        ) or (
+            len(min_pieces) == len(max_pieces) == 1
+            and isinstance(min_pieces[0], Bishop)
+            and isinstance(max_pieces[0], Bishop)
+        ):
+            return DrawReason.INSUFFICIENT_MATERIAL
+
+        if not (
+            self.with_check().is_checked or self.has_movable_piece()
+        ):
+            return DrawReason.STALEMATE
+
+    def with_draw(self, verify=True):
+        if verify:
+            self.is_draw = self.__find_draw_reason()
 
         return self
 
@@ -91,8 +140,13 @@ class StatusVerifier():
     def board(self):
         return self.__board
 
-    def __is_able_to_move(self):
+    def has_movable_piece(self):
         for piece in self.board.pieces.of(self.player):
             if piece.legal_movements(self.board):
                 return True
         return False
+
+    def unvalitate(self):
+        """Deletes the cached values
+        """
+        self.is_checked = self.is_check_mate = self.is_draw = None

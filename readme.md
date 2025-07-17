@@ -21,9 +21,10 @@ Ce projet est pensé pour les passionnés de stratégie et les développeurs sou
 ## 🚧 Fonctionnalités à venir
 
 - ⏳ Vérification des **situations de pat** :
-  - Roi seul et bloqué
-  - Répétition de coups (3x)
-  - Proposition de pat
+  - [x] Roi seul et bloqué
+  - [x] Manque de materiel
+  - [ ] Répétition de coups (3x)
+  - [ ] Proposition de pat
 - ⏳ **Jeu contre un bot** (structure déjà en place, IA à implémenter)
 - ⏳ Possibilité de jouer en mode [**Chess920**](https://fr.wikipedia.org/wiki/%C3%89checs_al%C3%A9atoires_Fischer)
 
