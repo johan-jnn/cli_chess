@@ -50,17 +50,21 @@ Ce projet est pensé pour les passionnés de stratégie et les développeurs sou
 Assure-toi d’avoir Python 3.8+ installé.
 
 ```bash
-git clone https://github.com/johan-jnn/terminal-chess.git
-cd terminal-chess
+git clone https://github.com/johan-jnn/cli_chess.git
+cd cli_chess
 python __main__.py [--test | --units]
 ```
 
 ### 🐋 Utiliser avec Docker
 
 ```bash
-git clone https://github.com/johan-jnn/terminal-chess.git
-cd terminal-chess
+# En téléchargeant le repo :
+git clone https://github.com/johan-jnn/cli_chess.git
+cd cli_chess
 docker run --rm -it $(docker build -q .) [--test | --units]
+
+# Sans télécharger le repo :
+docker run --rm -it $(docker build -q 'https://github.com/johan-jnn/cli_chess.git') [--test | --units]
 ```
 
 ---
