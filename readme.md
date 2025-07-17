@@ -52,7 +52,15 @@ Assure-toi d’avoir Python 3.8+ installé.
 ```bash
 git clone https://github.com/johan-jnn/terminal-chess.git
 cd terminal-chess
-python __main__.py
+python __main__.py [--test | --units]
+```
+
+### 🐋 Utiliser avec Docker
+
+```bash
+git clone https://github.com/johan-jnn/terminal-chess.git
+cd terminal-chess
+docker run --rm -it $(docker build -q .) [--test | --units]
 ```
 
 ---
