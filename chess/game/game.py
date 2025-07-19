@@ -1,7 +1,7 @@
 from typing import TYPE_CHECKING, Literal
 from chess.boards.board import Board
 from chess.boards.normal import NormalBoard
-from chess.players._player import DrawReason, Player, StatusVerifier
+from chess.players._player import DrawReason, Player
 
 if TYPE_CHECKING:
     from chess.movement.board_movement import BoardMovement

@@ -1,5 +1,4 @@
-from shutil import move
-from typing import TYPE_CHECKING, Callable, Literal
+from typing import TYPE_CHECKING, Callable
 from chess.movement.movement import Movement
 from chess.players._player import Player
 from chess.position import Position

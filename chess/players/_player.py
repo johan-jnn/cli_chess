@@ -48,17 +48,6 @@ class Player:
     def __str__(self) -> str:
         return self.name
 
-
-class DefaultWhitesPlayer(Player):
-    def __init__(self, name: str | None = "Whites") -> None:
-        super().__init__(Player.WHITES_DIRECTION, name)
-
-
-class DefaultBlacksPlayer(Player):
-    def __init__(self, name: str | None = "Blacks") -> None:
-        super().__init__(Player.BLACKS_DIRECTION, name)
-
-
 class DrawReason(Enum):
     STALEMATE = 0
     REPETITION = 1
