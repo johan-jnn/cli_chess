@@ -2,6 +2,9 @@ from typing import TYPE_CHECKING
 from chess.position import Position
 
 if TYPE_CHECKING:
+    from chess.pieces.king import CastlingDirection
+    from chess.pieces._piece import Piece
+    from chess.pieces.pawn import Pawn
     from chess.boards.board import Board
 
 
@@ -15,6 +18,9 @@ class Movement:
         self._computed_notation: str | None = None
 
         self.__cascade_with: Movement | None = None
+        self.with_piece_eaten: 'Piece|None' = None
+        self.with_promotion: 'tuple[Pawn, Piece] | None' = None
+        self.with_castling: 'CastlingDirection|None' = None
 
     def cascading(self, with_movement: 'Movement'):
         self.__cascade_with = with_movement
@@ -60,10 +66,13 @@ class Movement:
         if isinstance(value, Movement):
             return self.__identifier__() == value.__identifier__()
 
-        return self == value
+        return value == self
 
     def __str__(self) -> str:
-        return self.notation
+        return self.notation + (
+            f" ==> {self.cascade}"
+            if self.cascade else ""
+        )
 
 
 class MovementBuilder:
@@ -76,20 +85,29 @@ class MovementBuilder:
         self.__xy = self.__init.x_index, self.__init.y_index
         return self
 
-    def get(self):
+    def position(self):
         assert 0 <= self.__xy[0] < len(
             Position.valid_board_x), "Movement overflow on x"
         assert 0 <= self.__xy[1] < len(
             Position.valid_board_y), "Movement overflow on y"
 
-        return Movement(self.__init, Position(
+        return Position(
             Position.valid_board_x[self.__xy[0]],
             Position.valid_board_y[self.__xy[1]]
-        ))
+        )
 
-    def safe_get(self):
+    def safe_position(self):
         try:
-            return self.get()
+            return self.position()
+        except AssertionError:
+            return None
+
+    def movement(self):
+        return Movement(self.__init, self.position())
+
+    def safe_movement(self):
+        try:
+            return self.movement()
         except AssertionError:
             return None
 
@@ -114,4 +132,11 @@ class MovementBuilder:
             directions, tuple) else (directions, directions)
         self.addX(x, dx)
         self.addY(y, dy)
+        return self
+
+    def to(self, position: Position | str):
+        if isinstance(position, str):
+            position = Position(position)
+        self.__xy = position.x_index, position.y_index
+
         return self

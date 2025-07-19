@@ -9,11 +9,14 @@ if TYPE_CHECKING:
 
 
 class Player:
+    WHITES_DIRECTION = 1
+    BLACKS_DIRECTION = -1
+
     def __init__(self, direction: Literal[-1, 1], name: str | None = None) -> None:
         """Creates a new player
 
         Args:
-            direction (int): The direction of the player. Whites are defined by a direction > 0 and blacks by a direction < 0
+            direction (int): The direction of the player. Whites are defined by a direction = 1 and blacks by a direction = -1
             name (str, optional): The name of the player. Defaults to the color of the player.
         """
         assert direction, "Player's direction cannot be 0"
@@ -26,19 +29,34 @@ class Player:
         """
         raise NotImplementedError("Missing move method on parent class.")
 
+    def opponent_in(self, board: 'Board'):
+        found = board.all_pieces.of(self, False).first()
+        assert found is not None, "The player has no opponent in this board."
+        return found.player
+
     def verify_status(self, in_board: 'Board', pre_compute_checked=True, pre_compute_checkmate=False, pre_compute_draw=False):
         return StatusVerifier(self, in_board, pre_compute_checked, pre_compute_checkmate, pre_compute_draw)
 
     @property
     def is_black(self):
-        return self.direction < 0
+        return self.direction == self.BLACKS_DIRECTION
 
     @property
     def is_white(self):
-        return self.direction > 0
+        return self.direction == self.WHITES_DIRECTION
 
     def __str__(self) -> str:
         return self.name
+
+
+class DefaultWhitesPlayer(Player):
+    def __init__(self, name: str | None = "Whites") -> None:
+        super().__init__(Player.WHITES_DIRECTION, name)
+
+
+class DefaultBlacksPlayer(Player):
+    def __init__(self, name: str | None = "Blacks") -> None:
+        super().__init__(Player.BLACKS_DIRECTION, name)
 
 
 class DrawReason(Enum):
@@ -142,7 +160,7 @@ class StatusVerifier():
 
     def has_movable_piece(self):
         for piece in self.board.pieces.of(self.player):
-            if piece.legal_movements(self.board):
+            if piece.legal_movements():
                 return True
         return False
 

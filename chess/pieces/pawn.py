@@ -1,5 +1,4 @@
-from typing import Any, Literal
-from chess.boards.board import Board
+from typing import TYPE_CHECKING, Any, Literal
 from chess.movement.movement import Movement
 from chess.pieces._piece import Piece, WithMovementObserver
 from chess.pieces.bishop import Bishop
@@ -8,6 +7,9 @@ from chess.pieces.queen import Queen
 from chess.pieces.rook import Rook
 from chess.players._player import Player
 from chess.position import Position
+
+if TYPE_CHECKING:
+    from chess.boards.board import Board, BoardMovement
 
 
 class Pawn(WithMovementObserver):
@@ -21,12 +23,11 @@ class Pawn(WithMovementObserver):
         ('fou', Bishop)
     ]
 
-    def __init__(self, board: Board, player: Player, x: str, y: int | None = None) -> None:
+    def __init__(self, board: 'Board', player: Player, x: str, y: int | None = None) -> None:
         super().__init__(board, player, 1, x, y)
-        self.promoted_as: Piece | None = None
         self.__force_promotion_to: Any | None = None
 
-    def will_promote_as(self, choice: type[Piece] | Literal['ask']):
+    def force_promotion_as(self, choice: type[Piece] | Literal['ask']):
         if choice == "ask":
             self.__force_promotion_to = None
         else:
@@ -35,73 +36,74 @@ class Pawn(WithMovementObserver):
 
         return self
 
-    @property
-    def promotion_forced_to(self):
-        return self.__force_promotion_to or 'ask'
-
-    @property
-    def playable(self):
-        return super().playable and self.promoted_as is None
-
     def require_promotion(self, movement: Movement):
         return (
-            self.promoted_as is None
+            self.playable
             and movement.to_position.raw_y in (Position.valid_board_y[0], Position.valid_board_y[-1])
         )
 
-    def __promote(self):
+    def __promote(self) -> Piece:
         if self.__force_promotion_to is not None:
-            self.promoted_as = self.__force_promotion_to(
+            return self.__force_promotion_to(
                 self.board, self.player, str(self.position)
             )
-            return
 
         print("Le pion est promu !")
-        while not self.promoted_as:
+        while 1:
             promote_as = input(
                 "Choisissez une pièce ('r' | 't' | 'c' | 'f'): "
             ).lower()
             for (name, piece) in self.PROMOTABLE_AS:
                 if name.startswith(promote_as):
-                    self.promoted_as = piece(
+                    return piece(
                         self.board, self.player, str(self.position)
                     )
-                    return
             print("Veuillez choisir une pièce valide !")
 
+        raise IndexError("The promotion has not been made.")
+
+    def _is_movement_legal(self, movement: 'BoardMovement'):
+        reset_promotion_to = self.__force_promotion_to
+        self.force_promotion_as(self.PROMOTABLE_AS[0][1])
+
+        is_legal = super()._is_movement_legal(movement)
+        self.__force_promotion_to = reset_promotion_to
+
+        return is_legal
+
     def moved(self, movement: Movement) -> None:
+        super().moved(movement)
+
         if self.require_promotion(movement):
-            # Temporary ghost the piece to avoid the "existing piece at this position" error
+            movement.with_promotion = (self, self.__promote())
             self.ghost = True
-            self.__promote()
+
+    def move_canceled(self, movement: Movement) -> None:
+        if movement.with_promotion:
+            assert movement.with_promotion[0] is self, "Cannot unpromote: pieces are not the same."
+            movement.with_promotion[1].remove_from_board()
+            movement.with_promotion = None
             self.ghost = False
 
-        return super().moved(movement)
+        return super().move_canceled(movement)
 
-    def unmoved(self, movement: Movement) -> None:
-        if self.promoted_as:
-            self.promoted_as.remove_from_board()
-            self.promoted_as = None
+    def contesting_positions(self) -> list[Movement]:
+        contesting = []
+        forward = self.position.move().addY(1, self.player.direction).safe_position()
+        if forward and not self.board.pieces.at(forward).exist():
+            contesting.append(forward)
 
-        return super().unmoved(movement)
-
-    def possible_movements(self) -> list[Movement]:
-        moves = []
-        forward = self.position.move().addY(1, self.player.direction).safe_get()
-        if forward and not self.board.pieces.at(forward.to_position).exist():
-            moves.append(forward)
-
-        # The "and moves" is to verify there is no piece in front of this one
-        if not self.has_moved and moves:
-            forward2 = self.position.move().addY(2, self.player.direction).safe_get()
-            if forward2 and not self.board.pieces.at(forward2.to_position).exist():
-                moves.append(forward2)
+        # The "and contesting" is to verify there is no piece in front of this one
+        if not self.has_moved and contesting:
+            forward2 = self.position.move().addY(2, self.player.direction).safe_position()
+            if forward2 and not self.board.pieces.at(forward2).exist():
+                contesting.append(forward2)
 
         for x in -1, 1:
-            move = self.position.move().addXY(x, 1, self.player.direction).safe_get()
-            if move is None:
+            position = self.position.move().addXY(x, 1, self.player.direction).safe_position()
+            if position is None:
                 continue
-            if self.board.pieces.at(move.to_position).of(self.player, False).exist():
-                moves.append(move)
+            if self.board.pieces.at(position).of(self.player, False).exist():
+                contesting.append(position)
 
-        return moves
+        return contesting

@@ -1,19 +1,19 @@
+from shutil import move
 from typing import TYPE_CHECKING, Callable, Literal
-from chess.boards.board import Board
 from chess.movement.movement import Movement
 from chess.players._player import Player
 from chess.position import Position
+from chess.movement.board_movement import BoardMovement
 
 if TYPE_CHECKING:
-    from chess.movement.board_movement import BoardMovement
-    from chess.pieces.pawn import Pawn
+    from chess.boards.board import Board
 
 
 class Piece:
     REPRESENTATION = (None, None)
     NOTATION = "!!UNDEFINED!!"
 
-    def __init__(self, board: Board, player: Player, value: int, x: str, y: int | None = None) -> None:
+    def __init__(self, board: 'Board', player: Player, value: int, x: str, y: int | None = None) -> None:
         self.position = PiecePosition(self, x, y)
         assert not board.pieces.at(self.position).exist(
         ), "There is already a piece at this position on this board."
@@ -27,35 +27,60 @@ class Piece:
         board._pieces.append(self)
 
     @property
-    def promoted_from(self) -> 'Pawn|None':
-        from chess.pieces.pawn import Pawn
-
-        found = self.board.all_pieces.type(Pawn).where(
-            lambda p: p.promoted_as is self  # type: ignore
-        ).first()
-        return found  # type: ignore
-
-    @property
     def playable(self):
         return not (self.eaten_by or self.ghost)
 
-    def possible_movements(self) -> list[Movement]:
-        """Get the list of the piece's possible movements
-        This method only checks for :
-            - movement capabilities
-            - pieces that stop the movement
+    def contesting_positions(self) -> list[Position]:
+        """Get the list of the positions the piece is contesting
+        """
+        return []
+
+    def _is_movement_legal(self, movement: 'BoardMovement'):
+        if not (
+            movement.board.pieces.at(movement.from_position).first() is self
+        ):
+            return False
+
+        movement.validate(False)
+        is_legal = not self.player.verify_status(
+            movement.board
+        ).with_check().is_checked
+        movement.unvalidate()
+
+        return is_legal
+
+    def legal_movements(self):
+        """Get the list of the piece's legals movements
+        This method checks for:
+            - All possible movements
+            - checks
+            - casteling
 
         Returns:
             list[Movement]
         """
-        return []
+        moves: list[Movement] = []
+        for pos in self.contesting_positions():
+            movement = BoardMovement((
+                self.position,
+                pos
+            ), self.board)
+            if self._is_movement_legal(movement):
+                moves.append(movement)
+        return moves
 
-    def legal_movements(self, board: 'Board') -> list[Movement]:
-        return [
-            move
-            for move in self.possible_movements()
-            if move.in_board(board).is_legal_now()
-        ]
+    def move(self, movement: Movement) -> None:
+        from chess.pieces.king import King
+
+        eaten = self.board.pieces.at(movement.to_position).first()
+        if eaten is not None:
+            assert eaten.player != self.player, "Cannot eat your own piece"
+            assert not isinstance(eaten, King), "Cannot eat a king."
+            eaten.eaten_by = self
+            movement.with_piece_eaten = eaten
+
+        self.position.copy_from(movement.to_position)
+        return self.moved(movement)
 
     def moved(self, movement: Movement) -> None:
         """Should be executed after the piece has been moved by the given movement
@@ -64,12 +89,17 @@ class Piece:
             movement (Movement): The movement the piece made
         """
 
-    def unmoved(self, movement: Movement) -> None:
-        """Should be executed after that the given movement has been canceled
+    def cancel_move(self, movement: Movement) -> None:
+        self.position.copy_from(movement.from_position)
 
-        Args:
-            movement (Movement): The movement the piece made
-        """
+        if movement.with_piece_eaten is not None:
+            movement.with_piece_eaten.eaten_by = None
+            movement.with_piece_eaten = None
+
+        return self.move_canceled(movement)
+
+    def move_canceled(self, movement: Movement) -> None:
+        pass
 
     def remove_from_board(self):
         self.board._pieces.remove(self)
@@ -94,11 +124,11 @@ class WithMovementObserver(Piece):
 
         return super().moved(movement)
 
-    def unmoved(self, movement: Movement) -> None:
+    def move_canceled(self, movement: Movement) -> None:
         if movement.in_board(self.board) is self.__moved_from:
             self.__moved_from = None
 
-        return super().unmoved(movement)
+        return super().move_canceled(movement)
 
 # ----- PieceList helper
 
@@ -151,17 +181,17 @@ class PieceList:
     def contesting(
             self,
             position: Position,
-            use_legals_movements_in: Board | Literal[False] = False,
+            and_can_move_to: bool = False,
             should_be: bool = True
     ):
         self.__pieces = filter(
             lambda p: (
-                position in map(
-                    lambda m: m.to_position,
-
-                    p.legal_movements(use_legals_movements_in)
-                    if use_legals_movements_in is not False
-                    else p.possible_movements(),
+                position in (
+                    map(
+                        lambda m: m.to_position,
+                        p.legal_movements()
+                    )
+                    if and_can_move_to else p.contesting_positions()
                 )
             ) == should_be,
             self.__pieces

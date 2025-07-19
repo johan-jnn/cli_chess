@@ -39,7 +39,7 @@ class PhysicalPlayer(Player):
                 print("Merci d'avoir joué !")
                 return sys.exit(0)
             case "cancel" | "undo":
-                movement = game.moves.manage_last()
+                movement = game.board.moves.manage_last()
                 if movement is None:
                     return "Il n'y a pas de movement à annuler"
 
@@ -58,9 +58,9 @@ class PhysicalPlayer(Player):
                     position = Position(args[0])
                     piece = game.board.pieces.at(position).first()
                     if piece is None:
-                        return "Impossible d'afficher les mouvements légales : aucune pièce sur la case demandée."
+                        return "Impossible d'afficher les mouvements légaux : aucune pièce sur la case demandée."
 
-                    moves = piece.legal_movements(game.board)
+                    moves = piece.legal_movements()
                     if moves:
                         for move in moves:
                             print(move.to_position, end="; ")

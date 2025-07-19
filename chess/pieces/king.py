@@ -1,11 +1,19 @@
+from enum import Enum
 from math import copysign
-from typing import Literal
-from chess.boards.board import Board
+from typing import TYPE_CHECKING
 from chess.movement.movement import Movement
-from chess.players._player import Player
 from chess.pieces._piece import WithMovementObserver
 from chess.position import Position
 from chess.pieces.rook import Rook
+
+if TYPE_CHECKING:
+    from chess.players._player import Player
+    from chess.boards.board import Board
+
+
+class CastlingDirection(Enum):
+    KING = 1
+    QUEEN = -1
 
 
 class King(WithMovementObserver):
@@ -15,7 +23,7 @@ class King(WithMovementObserver):
 
     NOTATION = 'k'
 
-    def __init__(self, board: Board, player: Player, x: str, y: int | None = None) -> None:
+    def __init__(self, board: 'Board', player: 'Player', x: str, y: int | None = None) -> None:
         super().__init__(board, player, 0, x, y)
 
     def toggle_checkmate_representation(self, force: None | bool = None):
@@ -24,6 +32,7 @@ class King(WithMovementObserver):
             if force is None
             else force
         )
+
         self.REPRESENTATION = (
             self.CHECKMATE_REPRESENTATION
             if use_check_mate
@@ -32,23 +41,47 @@ class King(WithMovementObserver):
 
         return self
 
-    @property
-    def king_casteling_rook(self) -> Rook | None:
-        return self.board.pieces.of(self.player).where(
-            lambda p: isinstance(p, Rook) and not p.has_moved
-        ).at(
-            Position.valid_board_x[-1] + self.position.y
-        ).first()  # type: ignore
+    def contesting_positions(self) -> list[Movement]:
+        contesting = []
 
-    @property
-    def queen_casteling_rook(self) -> Rook | None:
-        return self.board.pieces.of(self.player).where(
-            lambda p: isinstance(p, Rook) and not p.has_moved
-        ).at(
-            Position.valid_board_x[0] + self.position.y
-        ).first()  # type: ignore
+        for x in range(-1, 2):
+            for y in range(-1, 2):
+                if x == y == 0:
+                    continue
+                if position := self.position.move().addXY(x, y).safe_position():
+                    override_piece = self.board.pieces.at(position).first()
 
-    def __able_to_castle_for(self, movement: Movement) -> bool:
+                    if override_piece and override_piece.player is self.player:
+                        continue
+
+                    contesting.append(position)
+
+        return contesting
+
+    def legal_movements(self) -> list[Movement]:
+        castles = []
+
+        for castle_direction in CastlingDirection:
+            if movement := self.get_castle_movement(castle_direction):
+                castles.append(movement)
+
+        return super().legal_movements() + castles
+
+    def moved(self, movement: Movement):
+        movement.with_castling = self.castle_type(movement)
+        super().moved(movement)
+
+    def move_canceled(self, movement: Movement) -> None:
+        movement.with_castling = None
+        return super().move_canceled(movement)
+
+    @staticmethod
+    def castle_type(movement: Movement) -> CastlingDirection | None:
+        x_shift, y_shift = movement.difference
+        if abs(x_shift) == 2 and y_shift == 0:
+            return CastlingDirection.KING if x_shift > 0 else CastlingDirection.QUEEN
+
+    def __is_able_to_castle(self, movement: Movement) -> bool:
         """
         Tests if all cases in the king's movement are empty and not contested by a opponent's piece
         """
@@ -72,57 +105,29 @@ class King(WithMovementObserver):
 
         return True
 
-    def possible_movements(self) -> list[Movement]:
-        moves = []
+    def get_castle_movement(self, direction: CastlingDirection) -> Movement | None:
+        if self.has_moved:
+            return
 
-        for x in range(-1, 2):
-            for y in range(-1, 2):
-                if x == y == 0:
-                    continue
-                movement = self.position.move().addXY(x, y).safe_get()
-                if movement:
-                    override_piece = self.board.pieces.at(
-                        movement.to_position).first()
-                    if override_piece and override_piece.player is self.player:
-                        continue
+        king_movement = self.position.move().addX(2, direction.value).safe_movement()
 
-                    moves.append(movement)
+        if not (king_movement and self.__is_able_to_castle(king_movement)):
+            return
 
-        return moves
+        rook_x_index = 0 if direction == CastlingDirection.QUEEN else -1
+        rook: Rook | None = self.board.pieces.of(self.player).where(
+            lambda p: isinstance(p, Rook) and not p.has_moved
+        ).at(
+            Position.valid_board_x[rook_x_index] + self.position.y
+        ).first()  # type: ignore
 
-    def legal_movements(self, board: Board) -> list[Movement]:
-        allowed_casteling = []
-        # Casteling
-        if not self.has_moved:
-            if self.king_casteling_rook is not None:
-                movement = self.castle_movement('king')
-                if self.__able_to_castle_for(movement):
-                    allowed_casteling.append(movement)
-            if self.queen_casteling_rook is not None:
-                movement = self.castle_movement('queen')
-                if self.__able_to_castle_for(movement):
-                    allowed_casteling.append(movement)
+        if rook is None:
+            return
 
-        return super().legal_movements(board) + allowed_casteling
-
-    @staticmethod
-    def castle_type(movement: Movement):
-        x_shift, y_shift = movement.difference
-        if abs(x_shift) == 2 and y_shift == 0:
-            return 'king' if x_shift > 0 else 'queen'
-
-    def castle_movement(self, castle_type: Literal['king', 'queen'], with_rook_cascade: bool = True):
-        direction = -1 if castle_type == 'queen' else 1
-
-        king_movement = self.position.move().addX(2, direction).get()
-        if with_rook_cascade is False:
-            return king_movement
-        rook = self.king_casteling_rook if castle_type == 'king' else self.queen_casteling_rook
-        assert rook is not None, "Cannot get the castle movement with rook as the rook does not exists."
+        rook_final_position = king_movement.to_position.move().addX(-1, direction.value).safe_position()
+        if not rook_final_position:
+            return
 
         return king_movement.cascading(
-            Movement(
-                rook.position,
-                king_movement.to_position.move().addX(-1, direction).get().to_position
-            )
+            rook.position.move().to(rook_final_position).movement()
         )

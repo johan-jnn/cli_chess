@@ -1,18 +1,21 @@
-from chess.boards.board import Board
+from typing import TYPE_CHECKING
 from chess.movement.movement import Movement
 from chess.pieces._piece import WithMovementObserver
 from chess.players._player import Player
+
+if TYPE_CHECKING:
+    from chess.boards.board import Board
 
 
 class Rook(WithMovementObserver):
     REPRESENTATION = ("♖", "♜")
     NOTATION = 'r'
 
-    def __init__(self, board: Board, player: Player, x: str, y: int | None = None) -> None:
+    def __init__(self, board: 'Board', player: Player, x: str, y: int | None = None) -> None:
         super().__init__(board, player, 5, x, y)
 
-    def possible_movements(self) -> list[Movement]:
-        moves = []
+    def contesting_positions(self) -> list[Movement]:
+        contesting = []
 
         for dx in range(-1, 2):
             for dy in range(-1, 2):
@@ -21,16 +24,17 @@ class Rook(WithMovementObserver):
 
                 distance = 1
                 while 1:
-                    move = self.position.move().addXY(dx, dy, distance).safe_get()
-                    if not move:
+                    position = self.position.move().addXY(dx, dy, distance).safe_position()
+                    if not position:
                         break
 
                     override_piece = self.board.pieces.at(
-                        move.to_position).first()
+                        position
+                    ).first()
                     if override_piece:
                         if override_piece.player is not self.player:
-                            moves.append(move)
+                            contesting.append(position)
                         break
-                    moves.append(move)
+                    contesting.append(position)
                     distance += 1
-        return moves
+        return contesting

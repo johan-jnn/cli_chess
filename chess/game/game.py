@@ -2,7 +2,6 @@ from typing import TYPE_CHECKING, Literal
 from chess.boards.board import Board
 from chess.boards.normal import NormalBoard
 from chess.players._player import DrawReason, Player, StatusVerifier
-from chess.movement.board_movement import BoardMovements
 
 if TYPE_CHECKING:
     from chess.movement.board_movement import BoardMovement
@@ -19,8 +18,10 @@ class ChessGame:
         """
         assert players[0].direction != players[1].direction, "Players has the same direction !"
 
-        self.moves = BoardMovements()
         self.players = players
+        self.black_player = players[players[1].is_black]
+        self.white_player = players[players[1].is_white]
+
         self.board = board if board is not None else NormalBoard()
         self.debug = False
 
@@ -33,48 +34,18 @@ class ChessGame:
 
         self.reset()
 
-    @property
-    def status(self):
-        """Get the status of the game
-
-        Returns:
-            1. The game has been won
-                {
-                    "status": "won",
-                    "winner": Player
-                }
-            2. The game is draw
-                {
-                    "status": "draw",
-                    "draw": DrawReason
-                }
-            3. Default
-                {
-                    "status": game.state
-                }
-        """
-        return {
-            "status": "draw",
-            "draw": self.__draw
-        } if self.__draw else {
-            "status": "won",
-            "winner": self.__winner
-        } if self.__winner else {
-            "status": self.state
-        }
-
     def now_playing(self):
-        return self.players[len(self.moves) % 2]
+        return self.players[len(self.board.moves) % 2]
 
     def now_opponent(self):
-        return self.players[(len(self.moves) + 1) % 2]
+        return self.players[(len(self.board.moves) + 1) % 2]
 
     def opponent_of(self, player: Player):
         return self.players[self.players[0].is_white == player.is_white]
 
     @property
-    def winner(self):
-        return self.__winner
+    def has_winner_or_draw(self):
+        return self.__winner or self.__draw
 
     @property
     def state(self):
@@ -115,7 +86,7 @@ class ChessGame:
         # Clears the terminal screen
         print(chr(27) + "[2J")
 
-    def autoplay(self, message: str | None = None) -> None:
+    def autoplay(self, message: str = ""):
         if self.state == "paused":
             input("Game paused. Press ENTER to resume.")
             self.resume()
@@ -130,7 +101,7 @@ class ChessGame:
         player = self.now_playing()
         print(f"Playing: {player}", end="")
         print(f" - {message}" if message else "")
-        print(f"Moves: {self.moves}")
+        print(f"Moves: {self.board.moves}")
         print(self.board.with_coordonates().as_reversed(player.is_black))
 
         request = player.get_move(self)
@@ -138,38 +109,41 @@ class ChessGame:
             return self.autoplay(request)
 
         try:
-            _, info = self.play(request)
+            movement = self.play(request)
         except AssertionError as err:
             return self.autoplay(str(err.args[0]))
 
-        status: StatusVerifier = info['status']
-        if status.is_check_mate:
+        if self.has_winner_or_draw:
             self._clear_console()
-            print(
-                f"Echec et mat : Partie terminée. {self.__winner} remporte la partie."
-            )
+
+            if isinstance(self.has_winner_or_draw, Player):
+                print(
+                    f"Echec et mat : Partie terminée. {self.has_winner_or_draw} remporte la partie."
+                )
+            else:
+                print(f"Nule ! Raison: {self.has_winner_or_draw}")
             print(self.board.as_reversed(False).with_coordonates())
             return
-        elif status.is_draw:
-            self._clear_console()
-            print(f"Nule ! Raison: {status.is_draw}")
-            print(self.board.as_reversed(False).with_coordonates())
-            return
 
-        return self.autoplay("Echec !" if status.is_checked else None)
+        opponent_consequences = movement.consequences('opponent')
+        assert opponent_consequences is not None
 
-    def __exec_move(self, move: 'Movement|BoardMovement'):
-        if self.__state != "playing":
-            return "Impossible d'executer le movement. La partie n'est pas active."
+        return self.autoplay("Echec !" if opponent_consequences.with_check().is_checked else "")
 
-        gm = move.in_board(self.board)
-        try:
-            return (gm, gm.with_game_end().validate())
-        except AssertionError as err:
-            gm.unvalidate()
-            return str(err.args[0])
+    def play(self, move: 'Movement|str') -> 'BoardMovement':
+        """Play and register the move, then check for check, checkmate and draw.
 
-    def play(self, move: 'Movement|BoardMovement|str'):
+        Args:
+            move (Movement|str): The movement to execute
+
+        Raises:
+            err: If the game is not playing or there is a move error
+
+        Returns:
+            BoardMovement: The movement that have been playing with all the informations filled
+        """
+        assert self.is_playing, "Impossible d'executer le movement. La partie n'est pas active."
+
         from chess.movement.board_movement import BoardMovement
 
         request = BoardMovement.decode(
@@ -177,32 +151,29 @@ class ChessGame:
         ) if isinstance(move, str) else move
         assert request is not False, "Invalid movement."
 
-        move_result = self.__exec_move(request)
+        movement = request.in_board(self.board)
 
-        assert not isinstance(move_result, str), move_result
-        move, info = move_result
+        try:
+            movement.validate(True)
+        except AssertionError as err:
+            movement.unvalidate()
+            raise err
 
-        if info['status'].is_check_mate:
+        opponent_status = movement.consequences('opponent')
+        assert opponent_status is not None, "Cannot validate status of the opponent."
+        opponent_status.with_checkmate().with_draw()
+
+        if opponent_status.is_check_mate:
             self.__winner = self.now_playing()
             self.board.get_king_of(
                 self.now_opponent()
             ).toggle_checkmate_representation(True)
-
             self.stop()
-        elif info['status'].is_draw:
-            self.__draw = info['status'].is_draw
+        elif opponent_status.is_draw:
+            self.__draw = opponent_status.is_draw
             self.stop()
 
-        self.moves.register(move)
-        return move, info
-
-    @property
-    def black_player(self):
-        return self.players[self.players[1].is_black]
-
-    @property
-    def white_player(self):
-        return self.players[self.players[1].is_white]
+        return movement
 
     def setup_board(self):
         assert self.white_player.is_black != self.black_player.is_black, "Players has the same direction ! Game cannot init the board."
