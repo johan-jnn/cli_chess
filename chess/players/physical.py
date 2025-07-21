@@ -39,12 +39,12 @@ class PhysicalPlayer(Player):
                 print("Merci d'avoir joué !")
                 return sys.exit(0)
             case "cancel" | "undo":
-                movement = game.board.moves.manage_last()
+                movement = game.board.moves.last()
                 if movement is None:
                     return "Il n'y a pas de movement à annuler"
 
                 notation = movement.notation
-                movement.undo()
+                movement.cancel()
 
                 return f"{notation} vient d'être annulé !"
             case "pause":
@@ -55,7 +55,7 @@ class PhysicalPlayer(Player):
                 return ""
             case "legals":
                 try:
-                    position = Position(args[0])
+                    position = Position.validate(game.board, args[0])
                     piece = game.board.pieces.at(position).first()
                     if piece is None:
                         return "Impossible d'afficher les mouvements légaux : aucune pièce sur la case demandée."

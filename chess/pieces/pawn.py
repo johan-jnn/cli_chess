@@ -6,7 +6,6 @@ from chess.pieces.knight import Knight
 from chess.pieces.queen import Queen
 from chess.pieces.rook import Rook
 from chess.players._player import Player
-from chess.position import Position
 
 if TYPE_CHECKING:
     from chess.boards.board import Board, BoardMovement
@@ -39,7 +38,7 @@ class Pawn(WithMovementObserver):
     def require_promotion(self, movement: Movement):
         return (
             self.playable
-            and movement.to_position.raw_y in (Position.valid_board_y[0], Position.valid_board_y[-1])
+            and movement.to_position.raw_y in (self.board.Y_RANGE[0], self.board.Y_RANGE[-1])
         )
 
     def __promote(self) -> Piece:
@@ -100,7 +99,8 @@ class Pawn(WithMovementObserver):
                 contesting.append(forward2)
 
         for x in -1, 1:
-            position = self.position.move().addXY(x, 1, self.player.direction).safe_position()
+            position = self.position.move().addXY(
+                x, 1, self.player.direction).safe_position()
             if position is None:
                 continue
             if self.board.pieces.at(position).of(self.player, False).exist():

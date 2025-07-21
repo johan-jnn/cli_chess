@@ -66,7 +66,7 @@ class Movement:
         if isinstance(value, Movement):
             return self.__identifier__() == value.__identifier__()
 
-        return value == self
+        return False
 
     def __str__(self) -> str:
         return self.notation + (
@@ -76,6 +76,12 @@ class Movement:
 
 
 class MovementBuilder:
+    """Move a position
+
+    Warning :   in order to use this class, the given init position
+                must have been validated in a board.
+    """
+
     def __init__(self, init_position: Position) -> None:
         self.__init = init_position
         self.__xy = -1, -1
@@ -87,13 +93,16 @@ class MovementBuilder:
 
     def position(self):
         assert 0 <= self.__xy[0] < len(
-            Position.valid_board_x), "Movement overflow on x"
+            self.__init.board.X_RANGE
+        ), "Movement overflow on x"
         assert 0 <= self.__xy[1] < len(
-            Position.valid_board_y), "Movement overflow on y"
+            self.__init.board.Y_RANGE
+        ), "Movement overflow on y"
 
-        return Position(
-            Position.valid_board_x[self.__xy[0]],
-            Position.valid_board_y[self.__xy[1]]
+        return Position.validate(
+            self.__init.board,
+            self.__init.board.X_RANGE[self.__xy[0]],
+            self.__init.board.Y_RANGE[self.__xy[1]],
         )
 
     def safe_position(self):
@@ -112,11 +121,11 @@ class MovementBuilder:
             return None
 
     def setX(self, x: str):
-        self.__xy = Position.valid_board_x.index(x), self.__xy[1]
+        self.__xy = self.__init.board.X_RANGE.index(x), self.__xy[1]
         return self
 
     def setY(self, y: int):
-        self.__xy = self.__xy[0], Position.valid_board_y.index(y)
+        self.__xy = self.__xy[0], self.__init.board.Y_RANGE.index(y)
         return self
 
     def addX(self, add: int, direction: int = 1):
@@ -136,7 +145,7 @@ class MovementBuilder:
 
     def to(self, position: Position | str):
         if isinstance(position, str):
-            position = Position(position)
+            position = Position.validate(self.__init.board, position)
         self.__xy = position.x_index, position.y_index
 
         return self

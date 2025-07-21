@@ -5,15 +5,19 @@ from chess.pieces.knight import Knight
 from chess.pieces.pawn import Pawn
 from chess.pieces.queen import Queen
 from chess.pieces.rook import Rook
-from chess.position import Position
 
 
-class NormalBoard(Board):
+class NormalEmptyBoard(Board):
+    X_RANGE = list("abcdefgh")
+    Y_RANGE = list(range(1, 9))
+
+
+class NormalBoard(NormalEmptyBoard):
     def setup(self, whites, blacks):
         self.empty()
 
         # Pawns
-        for x_axis in Position.valid_board_x:
+        for x_axis in self.X_RANGE:
             for (white, pawn_y) in enumerate([7, 2]):
                 Pawn(
                     self,

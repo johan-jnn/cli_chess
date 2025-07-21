@@ -5,6 +5,7 @@ from chess.players._player import StatusVerifier
 from chess.position import Position
 
 if TYPE_CHECKING:
+    from chess.pieces._piece import Piece
     from chess.boards.board import Board
     from chess.players._player import Player
 
@@ -41,7 +42,7 @@ class BoardMovement(Movement):
         )
 
         from chess.pieces.pawn import Pawn
-        to_position = Position(to)
+        to_position = Position.validate(board, to)
         found: Movement | Literal[False] = False
 
         for player_piece in board.pieces.of(player):
@@ -59,7 +60,7 @@ class BoardMovement(Movement):
             if from_row and player_piece.position.y != from_row:
                 continue
 
-            if movement not in player_piece.legal_movements():
+            if not (movement.to_position in player_piece.contesting_positions() and player_piece._is_movement_legal(movement.in_board(board))):
                 continue
 
             if found:
@@ -91,10 +92,19 @@ class BoardMovement(Movement):
         self.board = board
         self.depends_on = depends_on
 
+        self.validated_as: 'Piece | None' = None
         self.__board_hash_after: int | None = None
 
         self.__player_consequences: None | StatusVerifier = None
         self.__opponent_consequences: None | StatusVerifier = None
+
+    def __str__(self) -> str:
+        return self._computed_notation or super().__str__()
+
+    def __identifier__(self):
+        return (
+            f"{self.validated_as.NOTATION}: " if self.validated_as else ""
+        ) + super().__identifier__()
 
     def in_board(self, board: 'Board'):
         if board is self.board:
@@ -116,18 +126,20 @@ class BoardMovement(Movement):
         if self.cascade:
             self.cascade.in_board(self.board).validate(False)
 
+        self.validated_as = piece
         if and_save:
             self.__compute_notation()
-            self.board.moves.register(self)
+            self.board.moves.insert(self)
 
-        self.__player_consequences = piece.player.verify_status(self.board)
+        self.__player_consequences = piece.player.verify_status(
+            self.board)
         self.__opponent_consequences = piece.player.opponent_in(
             self.board
         ).verify_status(self.board)
 
         return True
 
-    def unvalidate(self):
+    def unvalidate(self, force=False):
         if self.cascade:
             self.cascade.in_board(self.board).unvalidate()
 
@@ -135,18 +147,21 @@ class BoardMovement(Movement):
             self.board
         ) == self.__board_hash_after, "The movement can't be unvalidated because the board is not at the right position."
 
-        # pylint: disable=unsubscriptable-object
-        piece = self.with_promotion[0] if self.with_promotion else self.board.pieces.at(
-            self.to_position
-        ).first()
-        assert piece is not None, "Cannot unvalidate the movement: no piece at the end position"
-
+        piece = self.validated_as or (
+            # pylint: disable=unsubscriptable-object
+            self.with_promotion[0] if self.with_promotion else self.board.pieces.at(
+                self.to_position
+            ).first()
+            if force else None
+        )
+        assert piece is not None, "Movement has not been validated yet (or - if forced - the piece does not exists)"
         piece.cancel_move(self)
 
         self.__board_hash_after =\
             self._computed_notation =\
             self.__player_consequences =\
             self.__opponent_consequences =\
+            self.validated_as =\
             None
 
         return True
@@ -161,11 +176,8 @@ class BoardMovement(Movement):
             self.board
         ) == self.__board_hash_after, "The notation cannot be computed as the board is not valid."
 
-        # pylint: disable=unsubscriptable-object
-        piece = self.with_promotion[0] if self.with_promotion else (
-            self.board.pieces.at(self.to_position).playable().first()
-        )
-        assert piece is not None, "The movement cannot be linked to the given board : no piece at the end position"
+        piece = self.validated_as
+        assert piece is not None, "Cannot compute notation : movement has not been validated."
 
         if self.with_castling is not None:
             self._computed_notation = "0-0" + (
@@ -206,9 +218,14 @@ class BoardMovement(Movement):
         ) + (
             str(self.to_position)
         ) + (
+            # pylint: disable=unsubscriptable-object
             self.with_promotion[1].NOTATION.upper()
             if self.with_promotion else ""
         ) + (
-            "#" if self.__opponent_consequences.is_check_mate else
-            "+" if self.__opponent_consequences.is_checked else ""
-        ) if self.__opponent_consequences else ""
+            (
+                # todo
+                # ? This will never be computed
+                "#" if self.__opponent_consequences.is_check_mate else
+                "+" if self.__opponent_consequences.is_checked else ""
+            ) if self.__opponent_consequences else ""
+        )

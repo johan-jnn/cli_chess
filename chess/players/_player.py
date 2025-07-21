@@ -48,6 +48,7 @@ class Player:
     def __str__(self) -> str:
         return self.name
 
+
 class DrawReason(Enum):
     STALEMATE = 0
     REPETITION = 1
@@ -132,6 +133,37 @@ class StatusVerifier():
             self.with_check().is_checked or self.has_movable_piece()
         ):
             return DrawReason.STALEMATE
+
+        _cache_data_template = {
+            "last_move": {
+                "iterations": 0,
+                "move": None
+            },
+            "no_capture_iterations": 0
+        }
+        cache = {
+            "whites": _cache_data_template.copy(),
+            "blacks": _cache_data_template.copy()
+        }
+
+        for movement in self.board.moves.iter("lifo"):
+            piece = movement.validated_as
+            assert piece is not None, "Error: movement has not been validated."
+            cache_data = cache['whites'] if piece.player.is_white else cache['blacks']
+
+            if movement.with_piece_eaten:
+                cache_data['no_capture_iterations'] = 0
+            else:
+                cache_data['no_capture_iterations'] += 1
+                if cache_data['no_capture_iterations'] >= 50:
+                    return DrawReason.FIFTY_MOVE
+
+            if cache_data['last_move']['move'] == movement:
+                cache_data['last_move']['iterations'] += 1
+                if cache_data['last_move']['iterations'] >= 3:
+                    return DrawReason.REPETITION
+
+            cache_data['last_move']['move'] = movement
 
     def with_draw(self, verify=True):
         if verify:

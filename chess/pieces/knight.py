@@ -1,7 +1,7 @@
 from typing import TYPE_CHECKING
-from chess.movement.movement import Movement
 from chess.pieces._piece import Piece
 from chess.players._player import Player
+from chess.position import Position
 
 if TYPE_CHECKING:
     from chess.boards.board import Board
@@ -14,7 +14,7 @@ class Knight(Piece):
     def __init__(self, board: 'Board', player: Player, x: str, y: int | None = None) -> None:
         super().__init__(board, player, 3, x, y)
 
-    def contesting_positions(self) -> list[Movement]:
+    def contesting_positions(self) -> list[Position]:
         contesting = []
 
         for dx in range(-2, 3):

@@ -32,8 +32,6 @@ class ChessGame:
         if board is None:
             self.setup_board()
 
-        self.reset()
-
     def now_playing(self):
         return self.players[len(self.board.moves) % 2]
 
@@ -146,8 +144,10 @@ class ChessGame:
 
         from chess.movement.board_movement import BoardMovement
 
+        player = self.now_playing()
+
         request = BoardMovement.decode(
-            move, self.board, self.now_playing()
+            move, self.board, player
         ) if isinstance(move, str) else move
         assert request is not False, "Invalid movement."
 
@@ -156,7 +156,7 @@ class ChessGame:
         try:
             movement.validate(True)
         except AssertionError as err:
-            movement.unvalidate()
+            movement.unvalidate(True)
             raise err
 
         opponent_status = movement.consequences('opponent')
@@ -164,9 +164,9 @@ class ChessGame:
         opponent_status.with_checkmate().with_draw()
 
         if opponent_status.is_check_mate:
-            self.__winner = self.now_playing()
+            self.__winner = player
             self.board.get_king_of(
-                self.now_opponent()
+                player, True
             ).toggle_checkmate_representation(True)
             self.stop()
         elif opponent_status.is_draw:

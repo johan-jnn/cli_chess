@@ -1,24 +1,41 @@
-from typing import Self
+from typing import TYPE_CHECKING, Self
+
+if TYPE_CHECKING:
+    from chess.boards.board import Board
 
 
 class Position:
-    valid_board_x = list("abcdefgh")
-    valid_board_y = list(range(1, 9))
-
     def __init__(self, x: str, y: int | None = None) -> None:
-        self.__x, self.__y = Position.validate_xy(x, y)
+        self.__x, self.__y = self.__get_xy(x, y)
+        self._validated_in_board: 'Board|None' = None
+
+    @property
+    def in_board(self):
+        return self._validated_in_board
+
+    @property
+    def board(self):
+        assert self._validated_in_board is not None, "Position has not been validated in board"
+        return self._validated_in_board
 
     @staticmethod
-    def validate_xy(x: str, y: int | None = None) -> tuple[str, int]:
+    def __get_xy(x: str, y: int | None = None):
         if y is None:
             assert len(x) == 2, "Invalid xy position value"
             [x, _y] = x
             y = int(_y)
 
-        assert x in Position.valid_board_x, "Invalid x position or value"
-        assert y in Position.valid_board_y, "Invalid y position or value"
-
         return x, y
+
+    @staticmethod
+    def validate(in_board: 'Board', x: str, y: int | None = None):
+        x, y = Position.__get_xy(x, y)
+        assert x in in_board.X_RANGE, "Invalid x position or value"
+        assert y in in_board.Y_RANGE, "Invalid y position or value"
+
+        position = Position(x, y)
+        position._validated_in_board = in_board
+        return position
 
     @property
     def x(self):
@@ -30,11 +47,11 @@ class Position:
 
     @property
     def x_index(self):
-        return Position.valid_board_x.index(self.__x)
+        return self.board.X_RANGE.index(self.__x)
 
     @property
     def y_index(self):
-        return Position.valid_board_y.index(self.__y)
+        return self.board.Y_RANGE.index(self.__y)
 
     @property
     def raw_x(self):
@@ -48,12 +65,6 @@ class Position:
     def raw_xy(self) -> tuple[str, int]:
         return self.raw_x, self.raw_y
 
-    def to(self, position: 'Position'):
-        """Get the movement from this position to another
-        """
-        from chess.movement.movement import Movement
-        return Movement(self, position)
-
     def move(self):
         """Get the movement builder from this position
         """
@@ -65,7 +76,9 @@ class Position:
         return self
 
     def clone(self):
-        return Position(*self.raw_xy)
+        pos = Position(*self.raw_xy)
+        pos._validated_in_board = self._validated_in_board
+        return pos
 
     def __eq__(self, value: object) -> bool:
         if isinstance(value, Position):

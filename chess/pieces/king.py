@@ -94,8 +94,9 @@ class King(WithMovementObserver):
         direction = int(copysign(1, end - start))
 
         for x_index in range(start, end + 1 * direction, direction):
-            position = Position(
-                Position.valid_board_x[x_index], movement.from_position.raw_y
+            position = Position.validate(
+                self.board,
+                self.board.X_RANGE[x_index], movement.from_position.raw_y
             )
             if (
                 (self.position != position and self.board.pieces.at(position))
@@ -118,13 +119,14 @@ class King(WithMovementObserver):
         rook: Rook | None = self.board.pieces.of(self.player).where(
             lambda p: isinstance(p, Rook) and not p.has_moved
         ).at(
-            Position.valid_board_x[rook_x_index] + self.position.y
+            self.board.X_RANGE[rook_x_index] + self.position.y
         ).first()  # type: ignore
 
         if rook is None:
             return
 
-        rook_final_position = king_movement.to_position.move().addX(-1, direction.value).safe_position()
+        rook_final_position = king_movement.to_position.move(
+        ).addX(-1, direction.value).safe_position()
         if not rook_final_position:
             return
 

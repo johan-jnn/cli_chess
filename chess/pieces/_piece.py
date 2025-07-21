@@ -13,7 +13,7 @@ class Piece:
     NOTATION = "!!UNDEFINED!!"
 
     def __init__(self, board: 'Board', player: Player, value: int, x: str, y: int | None = None) -> None:
-        self.position = PiecePosition(self, x, y)
+        self.position = Position.validate(board, x, y)
         assert not board.pieces.at(self.position).exist(
         ), "There is already a piece at this position on this board."
 
@@ -40,11 +40,15 @@ class Piece:
         ):
             return False
 
-        movement.validate(False)
-        is_legal = not self.player.verify_status(
-            movement.board
-        ).with_check().is_checked
-        movement.unvalidate()
+        is_legal = False
+        try:
+            movement.validate(False)
+            is_legal = not self.player.verify_status(
+                movement.board
+            ).with_check().is_checked
+            movement.unvalidate()
+        except AssertionError:
+            pass
 
         return is_legal
 
@@ -223,9 +227,3 @@ class PieceList:
 
     def __bool__(self):
         return self.exist()
-
-
-class PiecePosition(Position):
-    def __init__(self, piece: Piece, x: str, y: int | None = None) -> None:
-        super().__init__(x, y)
-        self.piece = piece
